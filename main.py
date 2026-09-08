@@ -1,36 +1,37 @@
 import tkinter as tk
 from astar import *
 
-r, c = 5, 5
+w, h = 5, 5
 
 l = [
-    1, 1, 1, 1, 1,
-    1, 1, 0, 1, 1,
-    1, 1, 0, 1, 1,
-    1, 1, 0, 1, 1,
-    1, 1, 0, 1, 1
+    1.0, 1.0, 1.0, 1.0, 1.0,
+    1.0, 1.0, 1.0, 1.0, 1.0,
+    0.1, 0.1, 0.1, 0.1, 0.1,
+    0.1, 0.1, 0.1, 0.1, 0.1,
+    0.1, 0.1, 0.1, 0.1, 0.1
 ]
+
 
 l_disp = [str(elem) for elem in l]
 
 
 x0, y0 = 0, 2
-x1, y1 = 3, 4
+x1, y1 = 4, 2
 
-map = Map(r, c, l)
-path = astar(map, euclidian_heuristic, x0, y0, x1, y1)
+path = astar(l, w, h, (x0, y0), (x1, y1))
+print(path)
 
 if path == None:
     print("No path found")
     exit()
 
 for cell in path:
-    l_disp[cell.x + cell.y * c] = "X"
+    l_disp[cell[0] + cell[1] * w] = "[X]"
 
-l_disp[x0 + y0 * c] = "S"
-l_disp[x1 + y1 * c] = "E"
+l_disp[x0 + y0 * w] = "STA"
+l_disp[x1 + y1 * w] = "END"
 
-for j in range(c):
-    for i in range(r):
-        print(l_disp[i + j * c], end=" ")
+for j in range(h):
+    for i in range(w):
+        print(l_disp[i + j * w], end=" ")
     print()
