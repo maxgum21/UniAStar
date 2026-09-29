@@ -1,137 +1,192 @@
-import tkinter as tk
+import pygame
+from pygame import Rect
+from typing import List, Tuple
+from astar import *
 
-root = tk.Tk(className="astar")
-root.title("A* Demo")
-root.geometry("600x400")
+class Cell:
+    def __init__(self, value : float):
+        self.val = value
+        self.is_path = False
+        self.is_tried = False
+        self.is_walked = False
+        self.is_start = False
+        self.is_end = False
 
-# Main geometry
+WIDTH, HEIGHT = 1200, 800
 
-root.rowconfigure(0, weight=1)
-root.rowconfigure(1, weight=3)
-root.columnconfigure(0, weight=1)
+pygame.init()
 
-setframe = tk.Frame(root, background="red")
-mapframe = tk.Frame(root, background="green")
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
+running = True
+tickrate = 20
+dt = 0
 
-setframe.grid(row=0, column=0, sticky="nsew")
-mapframe.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+is_mouse_held = False
+has_cell_changed = False
+prev_cell = (-1, -1)
 
-#
+flag_just_pressed = False
+is_setting_points = 0
+cellb, celle = (-1, -1), (-1, -1)
 
-w, h = 20, 20
+start_just_pressed = False
+was_path_created = False
 
-def set_map_size():
-    w = int(xbox.get())
-    if w > MAX_SIZE:
-        w = MAX_SIZE
-        xbox.invoke("buttonup")
-    elif w < MIN_SIZE:
-        w = MIN_SIZE
-        xbox.invoke("buttondown")
-
-    h = int(ybox.get())
-    if h > MAX_SIZE:
-        h = MAX_SIZE
-        ybox.invoke("buttonup")
-    elif h < MIN_SIZE:
-        h = MIN_SIZE
-        ybox.invoke("buttondown")
-    print(w, h)
-
-    set_map()
+mapw, maph = 50, 20
+board = [[Cell(1) for _ in range(mapw)] for _ in range(maph)]
+board_x, board_y, cell_size = 0, 0, 0
 
 
-# Settings
+def draw_cells(board : List[List[Cell]], padding : int):
+    global board_x, board_y, cell_size
 
-MAX_SIZE = 50
-MIN_SIZE = 10
+    if len(board) == 0:
+        return
 
-is_start, is_end = False, False
-value = 1.0
+    w, h = len(board[0]), len(board) 
+    csize = min(WIDTH // w, (HEIGHT * 0.9) // h)
+    mx = (WIDTH - csize * w) // 2
+    my = (int(HEIGHT * 0.9) - csize * h) // 2
+    board_x, board_y, cell_size = mx, my, csize
 
-setframe.columnconfigure(0, weight=1)
-setframe.columnconfigure(1, weight=1)
-setframe.columnconfigure(2, weight=1)
-setframe.columnconfigure(3, weight=10)
-setframe.rowconfigure(0, weight=1)
-setframe.rowconfigure(1, weight=1)
-setframe.rowconfigure(2, weight=1)
-
-xbox = tk.Spinbox(setframe, from_=MIN_SIZE, to=MAX_SIZE)
-xlabel = tk.Label(setframe, text="x")
-ybox = tk.Spinbox(setframe, from_=MIN_SIZE, to=MAX_SIZE)
-ylabel = tk.Label(setframe, text="y")
-setb = tk.Button(setframe, text="Set", command=set_map_size)
-
-xlabel.grid(row=0, column=0, sticky="nwse")
-xbox.grid(row=0, column=1, sticky="nwse")
-ylabel.grid(row=1, column=0, sticky="nwse")
-ybox.grid(row=1, column=1, sticky="nwse")
-setb.grid(row=0, column=2, rowspan=2)
-
-
-# Buttons
-
-
-def click(x : int, y : int) -> callable:
-    def curry():
-        but : tk.Button = mapframe.grid_slaves(row=y, column=x)[0]
-        but.config(bg="#00AA00", activebackground="#00CC00")
-    return curry
-
-def set_map():
-    for child in mapframe.winfo_children():
-        child.destroy()
-    
-    for i in range(w):
-        mapframe.rowconfigure(i, weight=1)
-
-    for i in range(h):
-        mapframe.columnconfigure(i, weight=1)
-    
     for x in range(w):
         for y in range(h):
-            tk.Button(mapframe, text="0.0", command=click(x, y)).grid(row=y, column=x, sticky="nwse")
+            r = Rect(mx + x * csize + padding, my + y * csize + padding, csize - padding, csize - padding)
+            cell = board[y][x]
+
+            MINCOL, MAXCOL = 50, 255
+            col = (0, 0, 0)
+            if cell.is_end:
+                col = (200, 50, 50)
+            elif cell.is_start:
+                col = (50, 200, 50)
+            elif cell.is_path:
+                col = (200, 200, 50)
+            elif cell.is_walked:
+                col = (160, 160, 50)
+            elif cell.is_tried:
+                col = (120, 120, 50)
+            else:
+                cval = MINCOL + cell.val * (MAXCOL - MINCOL)
+                col = (cval, cval, cval)
+
+            pygame.draw.rect(screen, col, r)
+
+def get_cell_by_pos(pos : Tuple[int, int]) -> Tuple[int, int]:
+    board_w = cell_size * mapw
+    board_h = cell_size * maph
+    bx, by = 0, 0
+
+    minx, maxx = board_x, board_x + board_w
+    miny, maxy = board_y, board_y + board_h
+    if pos[0] >= minx and pos[0] < maxx and pos[1] >= miny and pos[1] < maxy:
+        bx = (pos[0] - board_x) // cell_size
+        by = (pos[1] - board_y) // cell_size
+        return (bx, by)
+    return (-1, -1)
+
+def astarize_board(board : List[List[Cell]]) -> List[float]:
+    if not len(board): return None
+    w, h = len(board[0]), len(board)
+    res = []
+    for y in range(h):
+        for x in range(w):
+            res.append(board[y][x].val)
+    return res
 
 
+while running:
+    events = pygame.event.get()
 
-set_map()
-root.mainloop()
+    for event in events:
+        if event.type == pygame.QUIT:
+            running = False
+            break
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            is_mouse_held = True
+        elif event.type == pygame.MOUSEBUTTONUP:
+            is_mouse_held = False
+            has_cell_changed = False
+            prev_cell = (-1, -1)
+        elif event.type == pygame.KEYDOWN:
+
+            if event.key == pygame.K_SPACE:
+                if not flag_just_pressed:
+                    flag_just_pressed = True
+
+                    if was_path_created:
+                        was_path_created = False
+                        for celll in board:
+                            for cell in celll:
+                                cell.is_path = False
+
+                    if celle != (-1, -1):
+                        board[celle[1]][celle[0]].is_end = False
+                    if cellb != (-1, -1):
+                        board[cellb[1]][cellb[0]].is_start = False
+                    if is_setting_points == 1:
+                        is_setting_points = 0
+                    else:
+                        is_setting_points = 1
+                    
+            if event.key == pygame.K_RETURN:
+                if not start_just_pressed:
+                    start_just_pressed = True
+                    was_path_created = False
+                    for celll in board:
+                        for cell in celll:
+                            cell.is_path = False
+                    if cellb == (-1, -1) or celle == (-1, -1):
+                        print("Please select start and end cells!")
+                    else:
+                        blist = astarize_board(board)
+                        path = astar(blist, mapw, maph, cellb, celle)
+                        if path:
+                            was_path_created = True
+                            for cell in path:
+                                if cell != celle and cell != cellb:
+                                    board[cell[1]][cell[0]].is_path = True
+
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_SPACE:
+                flag_just_pressed = False
+            if event.key == pygame.K_RETURN:
+                start_just_pressed = False
+    
+    if is_mouse_held:
+        pos = pygame.mouse.get_pos()
+        bx, by = get_cell_by_pos(pos)
+        if bx != -1:
+            if prev_cell != (bx, by):
+                prev_cell = (bx, by)
+                if is_setting_points == 1:
+                    if board[by][bx].val != 0:
+                        board[by][bx].is_start = True
+                        cellb = (bx, by)
+                        is_setting_points = 2
+                elif is_setting_points == 2:
+                    if (bx, by) == cellb:
+                        is_setting_points = 0
+                        board[by][bx].is_start = False
+                    else:
+                        board[by][bx].is_end = True
+                        celle = (bx, by)
+                        is_setting_points = 0
+                else:
+                    board[by][bx].val = 1 - board[by][bx].val
 
 
-#from astar import *
-#
-#w, h = 5, 5
-#
-#l = [
-#    1.0, 1.0, 1.0, 1.0, 1.0,
-#    1.0, 1.0, 1.0, 1.0, 1.0,
-#    0.1, 0.1, 0.1, 0.1, 0.1,
-#    0.1, 0.1, 0.1, 0.1, 0.1,
-#    0.1, 0.1, 0.1, 0.1, 0.1
-#]
-#
-#
-#l_disp = [str(elem) for elem in l]
-#
-#
-#x0, y0 = 0, 2
-#x1, y1 = 4, 2
-#
-#path = astar(l, w, h, (x0, y0), (x1, y1))
-#print(path)
-#
-#if path == None:
-#    print("No path found")
-#    exit()
-#
-#for cell in path:
-#    l_disp[cell[0] + cell[1] * w] = "[X]"
-#
-#l_disp[x0 + y0 * w] = "STA"
-#l_disp[x1 + y1 * w] = "END"
-#
-#for j in range(h):
-#    for i in range(w):
-#        print(l_disp[i + j * w], end=" ")
-#    print()
+    # RENDER #
+
+    pygame.draw.rect(screen, (100, 100, 100), Rect(0, (HEIGHT * 0.9), WIDTH, HEIGHT * 0.1))
+
+    draw_cells(board, 1)
+
+    pygame.display.flip()
+
+    # ------ #
+
+    dt = clock.tick(tickrate) / 1000   
+
+pygame.quit()
